@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { load } from 'js-yaml'
 import { hotMount, hotUnmount, listHotMounts, mountClientOnlyDeps, parseSimplePatch, resolveProfileEntry } from '../src/hot.ts'
 import { configurePersistentLog, readPersistentLog } from '../src/log.ts'
 
@@ -129,6 +130,28 @@ describe('hotMount reads every declared patch file (#792)', () => {
       return ''
     }
   }
+
+  it('writes valid hot-mount YAML when the profile path contains an apostrophe (#1027)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), "dshm-hot-o'k-"))
+    try {
+      const name = 'quoted-plugin'
+      target(dir, name)
+      carrier(dir, 'quoted-carrier', './cordis.patch.yml', {
+        'cordis.patch.yml': `- insert:\n    - id: it's-quoted\n      name: ${name}\n`,
+      })
+      const result = await hotMount(ctx, dir, 'quoted-carrier')
+      expect(result.ok).toBe(true)
+      // The mocked Include never parses the generated YAML.
+      expect(mountedRows(dir)).toContain("o''k-")
+      expect(load(mountedRows(dir))).toEqual([{
+        id: "mkt-it's-quoted",
+        name: resolveProfileEntry(dir, name),
+      }])
+    } finally {
+      for (const mounted of listHotMounts()) await hotUnmount(mounted)
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 
   it('mounts rows from every file of an array declaration, in order', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dshm-hot-'))

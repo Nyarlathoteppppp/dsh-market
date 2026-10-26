@@ -88,6 +88,11 @@ export function resolveProfileEntry(profileDir: string, name: string): string {
   }
 }
 
+// File URLs may contain apostrophes; YAML single-quoted scalars escape them by doubling.
+function yamlSingleQuoted(value: string): string {
+  return value.replace(/'/g, "''")
+}
+
 const HOT_DIR = '.dsh-market'
 
 /**
@@ -885,7 +890,7 @@ export async function hotMount(ctx: HotContext, profileDir: string, packageName:
     // `cleanHotDir` wipes it on every boot and the bundle layer owns
     // persistence, so nothing reads these files back.
     const yml = rows
-      .map(row => `- id: 'mkt-${row.id}'\n  name: '${resolveProfileEntry(profileDir, row.name)}'\n`)
+      .map(row => `- id: '${yamlSingleQuoted(`mkt-${row.id}`)}'\n  name: '${yamlSingleQuoted(resolveProfileEntry(profileDir, row.name))}'\n`)
       .join('')
     writeFileSync(file, yml)
     const handle = ctx.plugin(HotTree, { path: pathToFileURL(file).href })
